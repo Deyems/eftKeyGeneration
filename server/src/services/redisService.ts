@@ -5,7 +5,6 @@ class RedisServiceHandler{
     private redis: Redis = new redis();
 
     persistKeyMappedToTerminal(data: Record<string, string>){
-        console.log(data, 'data checker');
         return this.redis.pipeline()
         .set(data.terminalId, JSON.stringify(data))
         .expire(data.terminalId, 60*10)
@@ -15,7 +14,6 @@ class RedisServiceHandler{
     findTerminalKey(terminal: string){
         return this.redis.get(terminal);
     }
-
 
 }
 

@@ -5,9 +5,6 @@ import path from "path";
 class LogHelper{
 
     logTcpRequestDataToFile(identifier: string, msg:string) {
-        let enable = process.env.file_log;
-        // if(enable != "true")return;
-        
         let filesPath = path.join(
           __dirname,
           "..",
