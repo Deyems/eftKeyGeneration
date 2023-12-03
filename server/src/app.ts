@@ -3,6 +3,8 @@ import http from 'http';
 import { Server } from 'socket.io';
 import routes from "./routes/routes";
 import SocketHandler from './socket/socketHandler'
+import { ENVIRONMENTVARIABLES } from './config';
+const {APP} = ENVIRONMENTVARIABLES;
 
 const app = express();
 const server = http.createServer(app);
@@ -13,7 +15,7 @@ SocketHandler.handleConnection(io);
 app.use(express.json());
 app.use('/api/v1', routes);
 
-const port = process.env.PORT || 3000;
+const port = APP.PORT;
 server.listen(port, () => {
-  console.log(`Server is running at http://localhost:${port}`);
+  console.log(`Server is running on ${port}`);
 });

@@ -1,5 +1,5 @@
 import MessagingHandler from '../services/messagingService';
-import { PublishRequestType, SubscriptionType } from '../interfaces/types';
+import { SubscriptionType } from '../interfaces/types';
 import { Server } from 'socket.io';
 import { DefaultEventsMap } from "@socket.io/component-emitter";
 
@@ -21,23 +21,22 @@ class SocketHandler{
         ioHandler.on('connection', (socket) => {
             console.log(`new Terminal connected: ${socket.id}`);
           
-            socket.on('fetch_keys', (data) => {
+            socket.on('fetch_keys', async (data) => {
               console.log(`Socket ${socket.id} subscribed to ${JSON.stringify(data)}`);
               const {terminalId} = data;
               //Generate keys 
-              this.messagingHandler.subscribe({terminalId, socketId: socket.id});
-              socket.emit('subsribe', "Hello My Guy");
+              let response = await this.messagingHandler.subscribeForKey({terminalId, socketId: socket.id});
+              socket.emit('send_keys', response);
             });
           
             socket.on('deactivate_keys', ({ terminalId }: SubscriptionType) => {
               console.log(`Socket ${socket.id} unsubscribed from room ${terminalId}`);
-              this.messagingHandler.unsubscribe(terminalId, socket.id);
+            //   this.messagingHandler.unsubscribeKey(terminalId, socket.id);
             });
           
             socket.on('disconnect', () => {
               console.log(`Socket disconnected: ${socket.id}`);
-              // Unsubscribe all channels when a socket disconnects
-              this.messagingHandler.unsubscribeAll(socket.id);
+              socket._cleanup();
             });
         });
         

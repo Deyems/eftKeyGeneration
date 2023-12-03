@@ -3,8 +3,6 @@ import HttpController from "../controllers/HttpController";
 
 const router = Router();
 
-router.post('/get-keys', HttpController.publishHandler);
-
-router.post('/subscribe', HttpController.subscribeHandler);
+router.post('/get-keys', HttpController.publishKeyHandler);
 
 export default router;

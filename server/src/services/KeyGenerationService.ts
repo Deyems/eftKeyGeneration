@@ -1,37 +1,25 @@
 import crypto, { CipherKey } from 'crypto';
+import { promisify } from 'util';
+import { ENVIRONMENTVARIABLES } from "../config/index";
+const {APP} = ENVIRONMENTVARIABLES;
 
 class KeyService{
+
+    private encoding: BufferEncoding = 'hex';
+    private keyLen = 16;
+    private algorithm = 'des-ede';
+    private componentKey_1 = APP.COMPONENT_KEY_1 as string;
+    private componentKey_2 = APP.COMPONENT_KEY_1 as string;
+
+    // private randomAsyncBytes = promisify(crypto.randomBytes);
 
     /**
      * 
      * @param length 
      * @returns 
      */
-    generateSecureHexKey(length: number): string {
-        return crypto.randomBytes(length).toString('hex').toUpperCase();
-    }
-
-    /**
-     * 
-     * @param hexKey 
-     * @returns 
-     */
-    calculateXORKCV(hexKey: string): string {
-        const keyBuffer = Buffer.from(hexKey, 'hex');
-      
-        // Take the first and last 8 bytes of the key
-        const leftPart = keyBuffer.slice(0, 8);
-        const rightPart = keyBuffer.slice(-8);
-      
-        // XOR the left and right parts
-        const xorResult = Buffer.alloc(8);
-        for (let i = 0; i < 8; i++) {
-          xorResult[i] = leftPart[i] ^ rightPart[i];
-        }
-      
-        // Convert the XOR result to hexadecimal
-        const kcvHex = xorResult.toString('hex').toUpperCase();
-        return kcvHex;
+    generatePlainHexKey(): string {
+        return crypto.randomBytes(this.keyLen).toString(this.encoding).toUpperCase();
     }
 
     /**
@@ -41,46 +29,85 @@ class KeyService{
      * @param key 
      * @param keyEncoding 
      * @param outputEncoding 
-     * @returns 
+     * @returns HEX STRING
+     * @description 
+     * Can be used to derive KCV for a HexKey with length of 32 characters
+     * Can be used to encrypt CTMK, CTSK, CTPK
+     * 
      */
     encrypt3DES(data:string, dataEncoding:BufferEncoding, key:string, keyEncoding:BufferEncoding, outputEncoding:BufferEncoding){
-        // algorithm: string, key: crypto.CipherKey, iv: crypto.BinaryLike | null,
         let k = Buffer.from(key, keyEncoding) as CipherKey;
-        let cipher = crypto.createCipheriv('des-ede', k , Buffer.alloc(0));
+        let encryptedDataArr = [];
+        let cipher = crypto.createCipheriv(this.algorithm, k , Buffer.alloc(0));
         cipher.setAutoPadding(false);
-        let encryptedData = cipher.update(data, dataEncoding,outputEncoding);
-        encryptedData += cipher.final(outputEncoding);
-        return encryptedData.toUpperCase();
+        let encryptedData = cipher.update(data, dataEncoding, outputEncoding);
+        let finalEncoding = cipher.final(outputEncoding);
+        encryptedDataArr.push(encryptedData);
+        encryptedDataArr.push(finalEncoding);
+        let output = encryptedDataArr.join("").toUpperCase();
+        return output;
     }
     //to generate the KCV you encrypt the decrypted Key with 16 bytes of Zeroes.
 
-    xorComponentKeys(){
+    /**
+     * 
+     * @param data 
+     * @param _dataEncoding 
+     * @param key 
+     * @param keyEncoding 
+     * @param outputEncoding 
+     * @returns 
+     */
+    decrypt3DES(data:Buffer, _dataEncoding:BufferEncoding, key:string, keyEncoding:BufferEncoding, outputEncoding:BufferEncoding){
+        let decryptedDataArr = [];
+        let k = Buffer.from(key,keyEncoding as BufferEncoding);
+        let decipher = crypto.createDecipheriv(this.algorithm, k , Buffer.alloc(0));
+        decipher.setAutoPadding(false);
+        let decryptedData = decipher.update(data, undefined, outputEncoding as BufferEncoding);
+        let finalEncoding = decipher.final(outputEncoding as BufferEncoding);
 
+        decryptedDataArr.push(decryptedData);
+        decryptedDataArr.push(finalEncoding);
+        let output = decryptedDataArr.join("").toUpperCase();
+        return output;
     }
 
-    generateComponentKeys(){
-        let componentKey_1 = this.generateSecureHexKey(16);
-        let componentKey_2 = this.generateSecureHexKey(16);
-        console.log(componentKey_1, 'key_1');
-        console.log(componentKey_2, 'key_2');
-        //Save it to Redis.
+    /**
+     * 
+     * @param componentKey_1 
+     * @param componentKey_2 
+     * @returns 
+     */
+    xorHexStringComponentKeys(): string {
+        let buf1 = Buffer.from(this.componentKey_1, this.encoding);
+        let buf2 = Buffer.from(this.componentKey_2, this.encoding);
+        let xorCombinedOutput = [];
+    
+        for (let idx = 0; idx < buf1.length; idx++) {
+            let xorValue = buf1[idx] ^ buf2[idx];
+            let store = xorValue.toString(16).toString();
+            store = store.length == 1 ? `0${store}` : store;
+            xorCombinedOutput.push(store);
+        }
+        return xorCombinedOutput.join("").toUpperCase();
+    }
+
+    generateComponentKeys(): Record<string, string>{
+        let componentKey_1 = this.generatePlainHexKey();
+        let componentKey_2 = this.generatePlainHexKey();
+        return {
+            componentKey_1,
+            componentKey_2
+        }
+    }
+
+    getEncryptedKey(data: string, key: string){
+        return this.encrypt3DES(data, this.encoding, key, this.encoding, this.encoding);
+    }
+
+    getDecryptedKey(data: string, key: string){
+        this.decrypt3DES(Buffer.from(data), this.encoding, key, this.encoding, this.encoding);
     }
 }
 
-// Example usage
-const keyService = new KeyService();
-// 06a6662ae0cd0cf640923536b54ccc64 = 4634531C5581C092
-// 135af03e7c80bb9c836d1e0ecf837e85 = 9037EE30B303C519
-// comp1 = 719A8B731738627A7D4B9C0B45F87CEE -> 7BFD2F75DF6F40FD
-// comp2 = 6EBA582353E84D8C1AB9040758B4799F => E2011B1984C16CEF
-
-// const secureHexKey = keyService.generateSecureHexKey(16);
-const secureHexKey = "6EBA582353E84D8C1AB9040758B4799F";
-
-
-
-// console.log(secureHexKey, 'keys generated');
-// console.log(keyService.calculateXORKCV(secureHexKey), 'kcv');
-console.log(keyService.encrypt3DES("0000000000000000", 'hex', secureHexKey, 'hex', 'hex'), 'new algo kcv');
-
-export default new KeyService();
+export default KeyService;

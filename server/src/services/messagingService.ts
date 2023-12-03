@@ -1,55 +1,64 @@
-import Redis from 'ioredis';
-import { MessageType, SubscriptionType } from '../interfaces/types';
-
+import RedisServiceHandler from './redisService';
+import KeyGenerationService from './keyGenerationService';
+import { ENVIRONMENTVARIABLES } from '../config';
+const {APP: {KCV_DATA_TO_ENCRYPT}} = ENVIRONMENTVARIABLES;
 class MessagingSetup {
-  private redis: Redis;
-  private subscriptions: SubscriptionType[] = [];
+
+  private redisHandler: RedisServiceHandler;
+  private keyHandler: KeyGenerationService;
 
   constructor() {
-    this.redis = new Redis();
-    
-    this.redis.on('message', (terminalId, data) => {
-      console.log('redis got a message!');
-      this.handleMessage({ terminalId, data });
-    });
+    this.redisHandler = new RedisServiceHandler();
+    this.keyHandler = new KeyGenerationService();
   }
 
-  subscribe(data: Record<string, string>): void {
+  async subscribeForKey(data: Record<string, string>): Promise<Record<string, string>> {
     const {terminalId, socketId} = data;
-    this.redis.subscribe(terminalId);
-    this.subscriptions.push({ terminalId, socketId });
-    console.log('got to sub in redis');
+    // check if tid still has keys? and respond with data from redisHandler.
+    const found = await this.redisHandler.findTerminalKey(terminalId);
+    if(found){
+      return this.buildJsonResponse(JSON.parse(found));
+    }
+    let keyInformation = this.generateKeys();
+    let parsedData = {terminalId, socketId, ...keyInformation};
+    await this.redisHandler.persistKeyMappedToTerminal(parsedData);
+    // console.log(saved, 'is saved');
+    return this.buildJsonResponse(parsedData);
   }
 
-  generateKeys(terminalId: string){
-    //Use UUID to generate Your keys
-  }
-
-  unsubscribe(terminalId: string, socketId: string): void {
-    this.redis.unsubscribe(terminalId);
-    this.subscriptions = this.subscriptions.filter(
-      (sub) => !(sub.terminalId === terminalId && sub.socketId === socketId)
-    );
-  }
-
-  unsubscribeAll(channel: string){
-    this.redis.unsubscribe(channel);
-    this.subscriptions = [];
-  }
-
-  publishMessage({channel, data}: Record<string, any>){
-    this.redis.publish(channel, data);
-  }
-
-  private handleMessage({ terminalId, data }: MessageType): void {
-    const subscribers = this.subscriptions.filter((sub) => sub.terminalId == terminalId);
-
-    for (const { socketId } of subscribers) {
-      // You would typically use a more advanced real-time communication library here
-      // (e.g., socket.io) to emit the message to the specified socket.
-      console.log(`Sending message to socket ${socketId}:`, data);
+  buildJsonResponse(data: Record<string, string>){
+    delete data.socketId;
+    return {
+      curTime: new Date().toISOString(),
+      responseCode: "00",
+      ...data
     }
   }
+
+  generateKeys(){
+    //The generation of keys can be made to be async by using promisify.
+    const ctmk = this.keyHandler.generatePlainHexKey();
+    const ctsk = this.keyHandler.generatePlainHexKey();
+    const ctpk = this.keyHandler.generatePlainHexKey();
+    
+    const tmk_kcv = this.keyHandler.encrypt3DES(KCV_DATA_TO_ENCRYPT as string, 'hex', ctmk, 'hex', 'hex');
+    const tsk_kcv = this.keyHandler.encrypt3DES(KCV_DATA_TO_ENCRYPT as string, 'hex', ctsk, 'hex', 'hex');
+    const tpk_kcv = this.keyHandler.encrypt3DES(KCV_DATA_TO_ENCRYPT as string, 'hex', ctpk, 'hex', 'hex');
+    
+    const ETMK = this.keyHandler.encrypt3DES(ctmk, 'hex', this.keyHandler.xorHexStringComponentKeys(), 'hex', 'hex');
+    const ETSK = this.keyHandler.encrypt3DES(ctsk, 'hex', ctmk, 'hex', 'hex');
+    const ETPK = this.keyHandler.encrypt3DES(ctpk, 'hex', ctmk, 'hex', 'hex');
+    
+    return {
+      etmk: ETMK,
+      tmkKcv: tmk_kcv,
+      etsk: ETSK,
+      tskKcv: tsk_kcv,
+      etpk: ETPK,
+      tpkKcv: tpk_kcv
+    }
+  }
+
 }
 
 export default MessagingSetup;
