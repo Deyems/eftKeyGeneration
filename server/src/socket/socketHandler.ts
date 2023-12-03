@@ -24,6 +24,10 @@ class SocketHandler{
             socket.on('fetch_keys', async (data) => {
               console.log(`Socket ${socket.id} subscribed to ${JSON.stringify(data)}`);
               const {terminalId} = data;
+              if(!terminalId){
+                socket.emit('send_keys', {error: true, data: null});
+                return;
+              }
               //Generate keys 
               let response = await this.messagingHandler.subscribeForKey({terminalId, socketId: socket.id});
               socket.emit('send_keys', response);
@@ -31,7 +35,6 @@ class SocketHandler{
           
             socket.on('deactivate_keys', ({ terminalId }: SubscriptionType) => {
               console.log(`Socket ${socket.id} unsubscribed from room ${terminalId}`);
-            //   this.messagingHandler.unsubscribeKey(terminalId, socket.id);
             });
           
             socket.on('disconnect', () => {
