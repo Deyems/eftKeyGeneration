@@ -31,6 +31,7 @@ class SocketHandler{
               //Generate keys 
               let response = await this.messagingHandler.subscribeForKey({terminalId, socketId: socket.id});
               socket.emit('send_keys', response);
+              return;
             });
           
             socket.on('deactivate_keys', ({ terminalId }: SubscriptionType) => {
