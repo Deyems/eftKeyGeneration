@@ -15,6 +15,16 @@ SocketHandler.handleConnection(io);
 app.use(express.json());
 app.use('/api/v1', routes);
 
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
 const port = APP.PORT;
 server.listen(port, () => {
   console.log(`Server is running on ${port}`);
