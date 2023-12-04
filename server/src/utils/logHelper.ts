@@ -4,7 +4,7 @@ import path from "path";
 
 class LogHelper{
 
-    logTcpRequestDataToFile(identifier: string, msg:string) {
+    static logTcpRequestDataToFile(identifier: string, msg:string) {
         let filesPath = path.join(
           __dirname,
           "..",

@@ -1,5 +1,4 @@
 import crypto, { CipherKey } from 'crypto';
-import { promisify } from 'util';
 import { ENVIRONMENTVARIABLES } from "../config/index";
 const {APP} = ENVIRONMENTVARIABLES;
 
@@ -10,8 +9,6 @@ class KeyService{
     private algorithm = 'des-ede';
     private componentKey_1 = APP.COMPONENT_KEY_1 as string;
     private componentKey_2 = APP.COMPONENT_KEY_1 as string;
-
-    // private randomAsyncBytes = promisify(crypto.randomBytes);
 
     /**
      * 

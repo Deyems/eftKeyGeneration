@@ -2,6 +2,7 @@ import RedisServiceHandler from './redisService';
 import KeyGenerationService from './keyGenerationService';
 import { ENVIRONMENTVARIABLES } from '../config';
 const {APP: {KCV_DATA_TO_ENCRYPT}} = ENVIRONMENTVARIABLES;
+import LogHelper from '../utils/logHelper';
 class MessagingSetup {
 
   private redisHandler: RedisServiceHandler;
@@ -12,8 +13,10 @@ class MessagingSetup {
     this.keyHandler = new KeyGenerationService();
   }
 
-  async subscribeForKey(data: Record<string, string>): Promise<Record<string, string>> {
+  async subscribeForKey(data: Record<string, string>): Promise<Boolean | Record<string, string>> {
+    //Handle errors
     const {terminalId, socketId} = data;
+    try {
     // check if tid still has keys? and respond with data from redisHandler.
     const found = await this.redisHandler.findTerminalKey(terminalId);
     if(found){
@@ -21,9 +24,19 @@ class MessagingSetup {
     }
     let keyInformation = this.generateKeys();
     let parsedData = {terminalId, socketId, ...keyInformation};
+    
+    //Save data to Redis - Redis is used as my storage.
     await this.redisHandler.persistKeyMappedToTerminal(parsedData);
-    // console.log(saved, 'is saved');
+
+    //Log the data for terminal that keys were generated successfully.
+    LogHelper.logTcpRequestDataToFile(terminalId, `${JSON.stringify(this.buildJsonResponse(parsedData))}`);
     return this.buildJsonResponse(parsedData);
+    } catch (error:any) {
+      //error type can be added later.
+      LogHelper.logTcpRequestDataToFile(terminalId, `An error occured trying to fetch keys`);
+      return false;
+    }
+    
   }
 
   buildJsonResponse(data: Record<string, string>){
